@@ -18,7 +18,9 @@ class MazeGame {
             antialias: true,
         });
         this.maze = new Maze(20, 20);
-        this.map = new Map(20, 2, this.maze);
+        this.map = new Map(30, 2, this.maze);
+        this.app.renderer.autoDensity = true;
+        this.app.renderer.resize(this.map.cellWidth * this.maze.w + this.map.wallBreadth, this.map.cellWidth * this.maze.h + this.map.wallBreadth);
         this.ball = new Ball(8, 0x00ff00, this.app);
         this.bg = new PIXI.Container();
         this.bg.addChild(this.map);
@@ -27,6 +29,11 @@ class MazeGame {
         this.mazeMask = new SimpleMazeMask(100, 30, this.app);
         this.app.stage.addChild(this.mazeMask);
         this.bg.mask = this.mazeMask;
+
+        this.app.stage.interactive = true;
+        this.app.stage.on("mousemove", this.onMouseMove.bind(this));
+        window.addEventListener("devicemotion", this.onDeviceMotion.bind(this));
+
         this.reset();
     }
 
@@ -39,6 +46,36 @@ class MazeGame {
         let cell = this.maze.getCell(0, 0);
         this.ball.x = cell.centerX * this.map.cellWidth;
         this.ball.y = cell.centerY * this.map.cellWidth;
+        this.mazeMask.x = this.ball.x;
+        this.mazeMask.y = this.ball.y;
+    }
+
+    moveBall(dx: number, dy: number) {
+        let maxMove = this.ball.radius - 2;
+        if (dx > maxMove) {
+            dx = maxMove;
+        }
+        if (dy > maxMove) {
+            dy = maxMove;
+        }
+        if (dx < -maxMove) {
+            dx = -maxMove;
+        }
+        if (dy < -maxMove) {
+            dy = -maxMove;
+        }
+        this.ball.x += dx;
+        this.ball.y += dy;
+        let restricted = this.wallRestrict(this.ball.x, this.ball.y);
+        this.ball.x = restricted.x;
+        this.ball.y = restricted.y;
+        this.mazeMask.x = this.ball.x;
+        this.mazeMask.y = this.ball.y;
+        let cell = this.map.getCell(this.ball.x, this.ball.y);
+        if (cell.x === this.maze.w - 1 && cell.y == this.maze.h - 1) {
+            alert("You win!");
+            this.reset();
+        }
     }
 
     onDeviceMotion(event: DeviceMotionEvent) {
@@ -62,34 +99,17 @@ class MazeGame {
                 ay = -event.accelerationIncludingGravity.y;
                 break;
         }
-        let maxMove = this.ball.radius - 2;
-        if (ax > maxMove) {
-            ax = maxMove;
-        }
-        if (ay > maxMove) {
-            ay = maxMove;
-        }
-        if (ax < -maxMove) {
-            ax = -maxMove;
-        }
-        if (ay < -maxMove) {
-            ay = -maxMove;
-        }
-        this.ball.x += ax;
-        this.ball.y += ay;
-        let restricted = this.wallRestrict(this.ball.x, this.ball.y);
-        this.ball.x = restricted.x;
-        this.ball.y = restricted.y;
-        this.mazeMask.x = this.ball.x;
-        this.mazeMask.y = this.ball.y;
+        this.moveBall(ax, ay);
+    }
+
+    onMouseMove(event: PIXI.interaction.InteractionEvent) {
+        let dx = event.data.global.x - this.ball.x;
+        let dy = event.data.global.y - this.ball.y;
+        this.moveBall(dx, dy);
     }
 
     wallRestrict(x: number, y: number) {
         let cell = this.map.getCell(x, y);
-        if (cell.x === this.maze.w - 1 && cell.y == this.maze.h - 1) {
-            alert("You win!");
-            return {x: this.map.cellWidth, y: this.map.cellWidth};
-        }
         if (x > cell.centerX * this.map.cellWidth) {
             let wall = cell.getWall(NeighbourDirection.RIGHT);
             if (wall.isWall) {
